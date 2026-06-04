@@ -24,6 +24,56 @@ app.post("/register-device", (req, res) => {
   });
 });
 
+app.post("/webhook/woocommerce", async (req, res) => {
+  try {
+
+    console.log("WooCommerce webhook received");
+
+    const order = req.body;
+
+    if (!adminDeviceToken) {
+      console.log("No registered device token");
+      return res.status(200).json({
+        success: false,
+        message: "No device registered"
+      });
+    }
+
+    const orderNumber = order.number || order.id;
+    const customerName =
+      `${order.billing?.first_name || ""} ${order.billing?.last_name || ""}`.trim();
+
+    const orderTotal = order.total || "0";
+
+    await admin.messaging().send({
+      token: adminDeviceToken,
+
+      notification: {
+        title: `🛒 New Order #${orderNumber}`,
+        body: `${customerName} placed an order of ₹${orderTotal}`
+      },
+
+      data: {
+        order_id: String(order.id || ""),
+        type: "new_order"
+      }
+    });
+
+    console.log(`Notification sent for Order #${orderNumber}`);
+
+    return res.status(200).json({
+      success: true
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
