@@ -54,6 +54,7 @@ app.post("/webhook/woocommerce", async (req, res) => {
 
     if (!deviceToken) {
       console.log("No device token found for store:", storeKey);
+
       return res.status(200).json({
         success: false,
         message: "No device registered for this store",
@@ -71,24 +72,68 @@ app.post("/webhook/woocommerce", async (req, res) => {
     const total = order.total || "0";
     const status = order.status || "updated";
 
-    const webhookTopic = req.headers["x-wc-webhook-topic"] || "";
+    const webhookTopic =
+      req.headers["x-wc-webhook-topic"] || "";
+
+    /*
+     * Ignore automatic Pending -> Processing
+     * updates right after order creation.
+     */
+    if (webhookTopic.includes("updated")) {
+
+      const createdTime =
+        new Date(order.date_created).getTime();
+
+      const modifiedTime =
+        new Date(order.date_modified).getTime();
+
+      const minutesSinceCreation =
+        (modifiedTime - createdTime) / (1000 * 60);
+
+      if (
+        status === "processing" &&
+        minutesSinceCreation < 5
+      ) {
+        console.log(
+          `Ignored auto-processing update for Order #${orderNumber}`
+        );
+
+        return res.status(200).json({
+          success: true,
+          ignored: true,
+          reason: "Auto-processing update ignored",
+        });
+      }
+    }
 
     let title = "";
     let body = "";
     let notificationType = "";
 
     if (webhookTopic.includes("updated")) {
-      title = `📦 WooPulse Order Update #${orderNumber}`;
-      body = `Order status changed to ${status.toUpperCase()}`;
+
+      title =
+        `📦 WooPulse Order Update #${orderNumber}`;
+
+      body =
+        `Order status changed to ${status.toUpperCase()}`;
+
       notificationType = "status_update";
+
     } else {
-      title = `🛒 New Order #${orderNumber}`;
-      body = `${customerName} placed an order of ${currency} ${total}`;
+
+      title =
+        `🛒 New Order #${orderNumber}`;
+
+      body =
+        `${customerName} placed an order of ${currency} ${total}`;
+
       notificationType = "new_order";
     }
 
     await admin.messaging().send({
       token: deviceToken,
+
       data: {
         title,
         body,
@@ -97,19 +142,25 @@ app.post("/webhook/woocommerce", async (req, res) => {
         status: String(status || ""),
         type: notificationType,
       },
+
       android: {
         priority: "high",
       },
     });
 
-    console.log(`Notification sent: ${notificationType} for Order #${orderNumber}`);
+    console.log(
+      `Notification sent: ${notificationType} for Order #${orderNumber}`
+    );
 
     return res.status(200).json({
       success: true,
       type: notificationType,
     });
+
   } catch (error) {
+
     console.error("Webhook error:", error);
+
     return res.status(500).json({
       error: error.message,
     });
@@ -118,6 +169,7 @@ app.post("/webhook/woocommerce", async (req, res) => {
 
 app.post("/send-test", async (req, res) => {
   try {
+
     const { token } = req.body;
 
     if (!token) {
@@ -128,12 +180,14 @@ app.post("/send-test", async (req, res) => {
 
     await admin.messaging().send({
       token,
+
       data: {
         title: "WooPulse Render Test",
         body: "Notification sent from Render server!",
         source: "render_test",
         type: "test",
       },
+
       android: {
         priority: "high",
       },
@@ -142,8 +196,11 @@ app.post("/send-test", async (req, res) => {
     return res.json({
       success: true,
     });
+
   } catch (error) {
+
     console.error("FCM error:", error);
+
     return res.status(500).json({
       error: error.message,
     });
