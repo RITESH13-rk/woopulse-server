@@ -6,51 +6,64 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let adminDeviceToken = null;
+const deviceTokens = {};
 
 app.post("/register-device", (req, res) => {
-  const { token } = req.body;
+  const { storeKey, token } = req.body;
 
-  if (!token) {
-    return res.status(400).json({ error: "Missing token" });
+  if (!storeKey || !token) {
+    return res.status(400).json({
+      error: "Missing storeKey or token"
+    });
   }
 
-  adminDeviceToken = token;
-  console.log("Device registered:", token.substring(0, 20) + "...");
+  deviceTokens[storeKey] = token;
+
+  console.log("Device registered for store:", storeKey);
 
   return res.json({
     success: true,
-    message: "Device token registered successfully",
+    message: "Device token registered successfully"
   });
 });
 
 app.post("/webhook/woocommerce", async (req, res) => {
   try {
-
     console.log("WooCommerce webhook received");
 
-    const order = req.body;
+    const storeKey = req.query.storeKey;
 
-    if (!adminDeviceToken) {
-      console.log("No registered device token");
-      return res.status(200).json({
-        success: false,
-        message: "No device registered"
+    if (!storeKey) {
+      return res.status(400).json({
+        error: "Missing storeKey"
       });
     }
 
-    const orderNumber = order.number || order.id;
-    const customerName =
-      `${order.billing?.first_name || ""} ${order.billing?.last_name || ""}`.trim();
+    const deviceToken = deviceTokens[storeKey];
 
-    const orderTotal = order.total || "0";
+    if (!deviceToken) {
+      console.log("No device token found for store:", storeKey);
+      return res.status(200).json({
+        success: false,
+        message: "No device registered for this store"
+      });
+    }
+
+    const order = req.body;
+    const orderNumber = order.number || order.id;
+
+    const customerName =
+      `${order.billing?.first_name || ""} ${order.billing?.last_name || ""}`.trim() || "Customer";
+
+    const currency = order.currency || "INR";
+    const total = order.total || "0";
 
     await admin.messaging().send({
-      token: adminDeviceToken,
+      token: deviceToken,
 
       notification: {
         title: `🛒 New Order #${orderNumber}`,
-        body: `${customerName} placed an order of ₹${orderTotal}`
+        body: `${customerName} placed an order of ${currency} ${total}`
       },
 
       data: {
@@ -67,7 +80,6 @@ app.post("/webhook/woocommerce", async (req, res) => {
 
   } catch (error) {
     console.error(error);
-
     return res.status(500).json({
       error: error.message
     });
