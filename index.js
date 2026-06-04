@@ -6,6 +6,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+let adminDeviceToken = null;
+
+app.post("/register-device", (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: "Missing token" });
+  }
+
+  adminDeviceToken = token;
+  console.log("Device registered:", token.substring(0, 20) + "...");
+
+  return res.json({
+    success: true,
+    message: "Device token registered successfully",
+  });
+});
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
