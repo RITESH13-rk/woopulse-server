@@ -59,18 +59,18 @@ app.post("/webhook/woocommerce", async (req, res) => {
     const total = order.total || "0";
 
     await admin.messaging().send({
-      token: deviceToken,
+  token: deviceToken,
 
-      notification: {
-        title: `🛒 New Order #${orderNumber}`,
-        body: `${customerName} placed an order of ${currency} ${total}`
-      },
+  notification: {
+    title: `🛒 New Order #${orderNumber}`,
+    body: `${customerName} placed an order of ${currency} ${total}`
+  },
 
-      data: {
-        order_id: String(order.id || ""),
-        type: "new_order"
-      }
-    });
+  data: {
+    order_id: String(order.id || ""),
+    type: "new_order"
+  }
+});
 
     console.log(`Notification sent for Order #${orderNumber}`);
 
@@ -106,10 +106,11 @@ app.post("/send-test", async (req, res) => {
 
     await admin.messaging().send({
       token,
-      notification: {
-        title: "WooPulse Render Test",
-        body: "Notification sent from Render server!",
-      },
+      data: {
+  title: "WooPulse Render Test",
+  body: "Notification sent from Render server!",
+  source: "render_test"
+},
       data: {
         source: "render_test",
       },
